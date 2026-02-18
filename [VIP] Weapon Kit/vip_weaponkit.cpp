@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include "vip_weaponkit.h"
 #include "schemasystem/schemasystem.h"
-#include <sstream>
 
 vip_weaponkit g_vip_weaponkit;
 
@@ -41,11 +40,11 @@ const char* GetTranslation(const char* key) {
     }
     
     const char* translation = g_pVIPCore->VIP_GetTranslate(key);
-
+    
     if (translation && translation[0]) {
         return translation;
     }
-
+    
     if (!strcmp(key, "Prefix")) return " {GREEN}[VIP]{DEFAULT}";
     if (!strcmp(key, "NotAccess")) return "У вас нету доступа к этой команде";
     if (!strcmp(key, "Weaponkit")) return "Комплект оружий";
@@ -125,6 +124,28 @@ void SavePlayerData(int iSlot, const std::string& kitId) {
     g_pVIPCore->VIP_SetClientCookie(iSlot, "weaponkit", kitId.c_str());
 }
 
+std::vector<std::string> SplitKits(const std::string& str) {
+    std::vector<std::string> result;
+    std::string current;
+    
+    for (char c : str) {
+        if (c == ',' || c == ';' || c == ':' || c == '|' || c == ' ') {
+            if (!current.empty()) {
+                result.push_back(current);
+                current.clear();
+            }
+        } else {
+            current += c;
+        }
+    }
+    
+    if (!current.empty()) {
+        result.push_back(current);
+    }
+    
+    return result;
+}
+
 std::vector<std::string> GetPlayerKits(int iSlot) {
     std::vector<std::string> kits;
     
@@ -142,9 +163,8 @@ std::vector<std::string> GetPlayerKits(int iSlot) {
         return kits;
     }
     
-    std::istringstream iss(strFeature);
-    std::string kitId;
-    while (std::getline(iss, kitId, ';')) {
+    std::vector<std::string> tokens = SplitKits(strFeature);
+    for (const auto& kitId : tokens) {
         if (!kitId.empty() && g_Kits.find(kitId) != g_Kits.end()) {
             kits.push_back(kitId);
         }
@@ -217,19 +237,18 @@ bool ShowMenu(int iSlot);
 
 void MenuCallback(const char* szBack, const char* szFront, int iItem, int iSlot) {
     if (!g_pVIPCore || !g_pVIPCore->VIP_IsClientVIP(iSlot)) return;
-    
-    // Если пустой - возврат в VIP меню
+
     if (!szBack || szBack[0] == '\0') {
         g_pVIPCore->VIP_OpenMenu(iSlot);
         return;
     }
-
+    
     if (!strcmp(szBack, "exit")) {
         return;
     }
     
     std::string kitId = szBack;
-
+    
     if (g_Kits.find(kitId) == g_Kits.end()) {
         return;
     }
@@ -247,7 +266,7 @@ void MenuCallback(const char* szBack, const char* szFront, int iItem, int iSlot)
         ShowMenu(iSlot);
         return;
     }
-
+    
     g_SavedKit[iSlot] = kitId;
     SavePlayerData(iSlot, kitId);
     
@@ -401,6 +420,7 @@ void VIP_OnClientLoaded(int iSlot, bool bIsVIP) {
     }
 }
 
+
 bool VIP_WeaponkitMenu(int iSlot, const char* szValue) {
     ShowMenu(iSlot);
     return false;
@@ -480,7 +500,7 @@ const char *vip_weaponkit::GetLicense()
 
 const char *vip_weaponkit::GetVersion()
 {
-    return "1.1";
+    return "1.1.1";
 }
 
 const char *vip_weaponkit::GetDate()
