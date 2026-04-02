@@ -15,3 +15,10 @@ addons/configs/vip/vip_infiniteammo.ini
 
 ## Groups.ini
 "InfiniteReserveAmmo" "premium"
+
+## translations
+"InfiniteReserveAmmo"
+    {
+        "en"    "Extra Magazines"
+        "ru"    "Доп. обоймы"
+    }
