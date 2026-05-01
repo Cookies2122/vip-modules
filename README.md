@@ -1,24 +1,33 @@
-# VIP InfiniteReserveAmmo (CS2)
+# VIP InfiniteReserveAmmo
 
 Plugin for CS2 that provides VIP players with infinite reserve ammo.
 
-## Features
+# VIP RegenAmmo
 
-- Infinite reserve ammo for VIP players
-- Weapon-specific ammo overrides
-- Configurable packs
+Regenerate the cartridge while it is not in your hands.
 
-## Configuration
+# VIP Respawn++
 
-File:
-addons/configs/vip/vip_infiniteammo.ini
+The opportunity to be reborn.
+
+# VIP WeaponKit
+
+The ability to give a kit to a player at the start of a match.
+
 
 ## Groups.ini
+
 "InfiniteReserveAmmo" "premium"
 
-## translations
-"InfiniteReserveAmmo"
-    {
-        "en"    "Extra Magazines"
-        "ru"    "Доп. обоймы"
-    }
+"respawn" "1"
+
+"WeaponKit" "all"   // Все комплекты
+"WeaponkitMenu" "1"
+
+"RegenAmmunition"      "2"
+"DelayRegenAmmunition" "10"
+
+
+
+
+    
