@@ -14,6 +14,10 @@ The opportunity to be reborn.
 
 The ability to give a kit to a player at the start of a match.
 
+# VIP Reserved slots
+
+Reserved slots for VIP players
+
 
 ## Groups.ini
 
