@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <algorithm>
 #include "vip_weaponkit.h"
 #include "schemasystem/schemasystem.h"
 
@@ -18,6 +19,30 @@ PLUGIN_EXPOSE(vip_weaponkit, g_vip_weaponkit);
 int g_iRoundMin = 0;
 int g_iRoundLimit = 0;
 bool g_bAutoOpenMenu = true;
+bool g_bCheckSave = false;
+
+KeyValues* g_pGroupsKV = nullptr;
+char g_szGroupsFile[256] = "addons/configs/vip/groups.ini";
+
+static void LoadGroupsKV() {
+    if (g_pGroupsKV) { g_pGroupsKV->deleteThis(); g_pGroupsKV = nullptr; }
+    KeyValues* kv = new KeyValues("VIP");
+    if (kv->LoadFromFile(g_pFullFileSystem, g_szGroupsFile)) {
+        g_pGroupsKV = kv;
+    } else {
+        kv->deleteThis();
+        g_pUtils->ErrorLog("[WeaponKit] cannot load %s (fallback path)", g_szGroupsFile);
+    }
+}
+
+static const char* GroupFeatureFallback(int iSlot, const char* szFeature) {
+    if (!g_pGroupsKV || !g_pVIPCore) return "";
+    const char* grp = g_pVIPCore->VIP_GetClientVIPGroup(iSlot);
+    if (!grp || !*grp) return "";
+    KeyValues* pG = g_pGroupsKV->FindKey(grp, false);
+    if (!pG) return "";
+    return pG->GetString(szFeature, "");
+}
 
 struct WeaponKit {
     std::string id;
@@ -40,7 +65,6 @@ const char* GetTranslation(const char* key) {
     }
     
     const char* translation = g_pVIPCore->VIP_GetTranslate(key);
-    
     if (translation && translation[0]) {
         return translation;
     }
@@ -74,13 +98,18 @@ void LoadConfig() {
     g_iRoundMin = kv->GetInt("round_min", 0);
     g_iRoundLimit = kv->GetInt("roundlimit", 0);
     g_bAutoOpenMenu = kv->GetInt("autoopenmenu", 1) != 0;
+    g_bCheckSave = kv->GetInt("checksave", 0) != 0;
+    g_SMAPI->Format(g_szGroupsFile, sizeof(g_szGroupsFile), "%s",
+        kv->GetString("groups_file", "addons/configs/vip/groups.ini"));
+    LoadGroupsKV();
     
     FOR_EACH_SUBKEY(kv, pSubKey) {
         const char* keyName = pSubKey->GetName();
         
         if (!strcmp(keyName, "round_min") || 
             !strcmp(keyName, "roundlimit") || 
-            !strcmp(keyName, "autoopenmenu")) {
+            !strcmp(keyName, "autoopenmenu") ||
+            !strcmp(keyName, "checksave")) {
             continue;
         }
         
@@ -109,18 +138,15 @@ void LoadConfig() {
 
 std::string LoadPlayerData(int iSlot) {
     if (!g_pVIPCore) return "";
-    
     const char* saved = g_pVIPCore->VIP_GetClientCookie(iSlot, "weaponkit");
     if (saved && saved[0]) {
         return std::string(saved);
     }
-    
     return "";
 }
 
 void SavePlayerData(int iSlot, const std::string& kitId) {
     if (!g_pVIPCore) return;
-    
     g_pVIPCore->VIP_SetClientCookie(iSlot, "weaponkit", kitId.c_str());
 }
 
@@ -153,8 +179,10 @@ std::vector<std::string> GetPlayerKits(int iSlot) {
     if (!pController) return kits;
     
     const char* feature = g_pVIPCore->VIP_GetClientFeatureString(iSlot, "WeaponKit");
+    if (!feature || !feature[0] || !strcmp(feature, "none"))
+        feature = GroupFeatureFallback(iSlot, "WeaponKit");
     if (!feature || !feature[0] || !strcmp(feature, "none")) return kits;
-    
+
     std::string strFeature = feature;
     if (strFeature == "all") {
         for (const auto& [id, kit] : g_Kits) {
@@ -173,6 +201,33 @@ std::vector<std::string> GetPlayerKits(int iSlot) {
     return kits;
 }
 
+static int NadeAmmoIndex(const std::string& w) {
+    if (w == "weapon_hegrenade")    return 13;
+    if (w == "weapon_flashbang")    return 14;
+    if (w == "weapon_smokegrenade") return 15;
+    if (w == "weapon_molotov" || w == "weapon_incgrenade") return 16;
+    if (w == "weapon_decoy")        return 17;
+    return -1;
+}
+
+static int WeaponCategory(const std::string& w) {
+    static const char* kSecondary[] = {
+        "weapon_glock", "weapon_usp_silencer", "weapon_hkp2000", "weapon_p250",
+        "weapon_elite", "weapon_fiveseven", "weapon_tec9", "weapon_cz75a",
+        "weapon_deagle", "weapon_revolver"
+    };
+    static const char* kPrimary[] = {
+        "weapon_ak47", "weapon_m4a1", "weapon_m4a1_silencer", "weapon_galilar",
+        "weapon_famas", "weapon_aug", "weapon_sg556", "weapon_awp", "weapon_ssg08",
+        "weapon_scar20", "weapon_g3sg1", "weapon_mp9", "weapon_mac10", "weapon_mp7",
+        "weapon_mp5sd", "weapon_ump45", "weapon_p90", "weapon_bizon", "weapon_nova",
+        "weapon_xm1014", "weapon_sawedoff", "weapon_mag7", "weapon_negev", "weapon_m249"
+    };
+    for (const char* s : kSecondary) if (w == s) return 1;
+    for (const char* s : kPrimary)   if (w == s) return 0;
+    return -1;
+}
+
 bool GiveKit(int iSlot, const std::string& kitId) {
     auto it = g_Kits.find(kitId);
     if (it == g_Kits.end()) return false;
@@ -189,13 +244,96 @@ bool GiveKit(int iSlot, const std::string& kitId) {
     CCSPlayer_ItemServices* pItemServices = static_cast<CCSPlayer_ItemServices*>(pPawn->m_pItemServices());
     if (!pItemServices) return false;
     
-    for (const auto& weapon : it->second.weapons) {
-        if (!weapon.empty()) {
-            pItemServices->GiveNamedItem(weapon.c_str());
+    CPlayer_WeaponServices* pWeaponServices = pPawn->m_pWeaponServices();
+    if (!pWeaponServices) return false;
+    
+    std::vector<std::string> hWeapons;
+    std::vector<CBasePlayerWeapon*> hWeaponPtrs;
+    CUtlVector<CHandle<CBasePlayerWeapon>>* weapons = pWeaponServices->m_hMyWeapons();
+    FOR_EACH_VEC(*weapons, i) {
+        CBasePlayerWeapon* hWeapon = (*weapons)[i].Get();
+        if (!hWeapon) continue;
+        hWeapons.push_back(std::string(((CEntityInstance*)hWeapon)->GetClassname()));
+        hWeaponPtrs.push_back(hWeapon);
+    }
+    
+    if (g_bCheckSave) {
+        for (const auto& weapon : hWeapons) {
+            if (weapon.find("weapon_ak47") != std::string::npos ||
+                weapon.find("weapon_m4a1") != std::string::npos ||
+                weapon.find("weapon_galil") != std::string::npos ||
+                weapon.find("weapon_famas") != std::string::npos ||
+                weapon.find("weapon_aug") != std::string::npos ||
+                weapon.find("weapon_sg556") != std::string::npos ||
+                weapon.find("weapon_awp") != std::string::npos ||
+                weapon.find("weapon_ssg08") != std::string::npos ||
+                weapon.find("weapon_scar20") != std::string::npos ||
+                weapon.find("weapon_g3sg1") != std::string::npos ||
+                weapon.find("weapon_mp9") != std::string::npos ||
+                weapon.find("weapon_mac10") != std::string::npos ||
+                weapon.find("weapon_mp7") != std::string::npos ||
+                weapon.find("weapon_mp5sd") != std::string::npos ||
+                weapon.find("weapon_ump45") != std::string::npos ||
+                weapon.find("weapon_p90") != std::string::npos ||
+                weapon.find("weapon_bizon") != std::string::npos ||
+                weapon.find("weapon_nova") != std::string::npos ||
+                weapon.find("weapon_xm1014") != std::string::npos ||
+                weapon.find("weapon_sawedoff") != std::string::npos ||
+                weapon.find("weapon_mag7") != std::string::npos ||
+                weapon.find("weapon_negev") != std::string::npos ||
+                weapon.find("weapon_m249") != std::string::npos) {
+                return false;
+            }
         }
     }
     
-    if (g_pUtils) {
+    CCSPlayer_WeaponServices* pWS = static_cast<CCSPlayer_WeaponServices*>(pWeaponServices);
+
+    std::map<int, int> wantNade;
+    for (const auto& weapon : it->second.weapons) {
+        int idx = NadeAmmoIndex(weapon);
+        if (idx >= 0) wantNade[idx]++;
+    }
+
+    bool gaveAnyItem = false;
+    CBasePlayerWeapon* pTakeInHands = nullptr;
+
+    for (const auto& weapon : it->second.weapons) {
+        if (weapon.empty()) continue;
+
+        int nadeIdx = NadeAmmoIndex(weapon);
+        if (nadeIdx >= 0) {
+            if (pWeaponServices->m_iAmmo()[nadeIdx] < wantNade[nadeIdx]) {
+                pItemServices->GiveNamedItem(weapon.c_str());
+                gaveAnyItem = true;
+            }
+            continue;
+        }
+
+        if (std::find(hWeapons.begin(), hWeapons.end(), weapon) != hWeapons.end())
+            continue;
+
+        int cat = WeaponCategory(weapon);
+        if (cat >= 0) {
+            for (size_t w = 0; w < hWeapons.size(); ++w) {
+                if (!hWeaponPtrs[w]) continue;
+                if (WeaponCategory(hWeapons[w]) != cat) continue;
+                pWS->DropWeapon(hWeaponPtrs[w]);
+                g_pUtils->RemoveEntity((CEntityInstance*)hWeaponPtrs[w]);
+                hWeaponPtrs[w] = nullptr;
+            }
+        }
+
+        CBasePlayerWeapon* pGiven = pItemServices->GiveNamedItem(weapon.c_str());
+        if (pGiven && cat >= 0 && !pTakeInHands)
+            pTakeInHands = pGiven;
+        gaveAnyItem = true;
+    }
+
+    if (pTakeInHands)
+        pWS->SelectItem(pTakeInHands);
+    
+    if (gaveAnyItem && g_pUtils) {
         g_pUtils->PrintToChat(iSlot, "%s %s",
             GetTranslation("Prefix"), 
             GetTranslation("KitReceived"));
@@ -211,9 +349,9 @@ bool CanGive(int iSlot, bool showMessage = true) {
     
     if (currentRound < g_iRoundMin) {
         if (showMessage) {
-            g_pUtils->PrintToChat(iSlot, "%s %s",
-                GetTranslation("Prefix"), 
-                GetTranslation("KitFromRound"));
+            char msg[256];
+            snprintf(msg, sizeof(msg), GetTranslation("KitFromRound"), g_iRoundMin);
+            g_pUtils->PrintToChat(iSlot, "%s %s", GetTranslation("Prefix"), msg);
         }
         return false;
     }
@@ -222,9 +360,10 @@ bool CanGive(int iSlot, bool showMessage = true) {
         int nextRound = g_NextAvailableRound[iSlot];
         if (nextRound > currentRound) {
             if (showMessage) {
-                g_pUtils->PrintToChat(iSlot, "%s %s",
-                    GetTranslation("Prefix"), 
-                    GetTranslation("KitNextRound"));
+                int roundsLeft = nextRound - currentRound;
+                char msg[256];
+                snprintf(msg, sizeof(msg), GetTranslation("KitNextRound"), roundsLeft);
+                g_pUtils->PrintToChat(iSlot, "%s %s", GetTranslation("Prefix"), msg);
             }
             return false;
         }
@@ -237,18 +376,18 @@ bool ShowMenu(int iSlot);
 
 void MenuCallback(const char* szBack, const char* szFront, int iItem, int iSlot) {
     if (!g_pVIPCore || !g_pVIPCore->VIP_IsClientVIP(iSlot)) return;
-
+    
     if (!szBack || szBack[0] == '\0') {
         g_pVIPCore->VIP_OpenMenu(iSlot);
         return;
     }
-    
+
     if (!strcmp(szBack, "exit")) {
         return;
     }
     
     std::string kitId = szBack;
-    
+
     if (g_Kits.find(kitId) == g_Kits.end()) {
         return;
     }
@@ -266,7 +405,7 @@ void MenuCallback(const char* szBack, const char* szFront, int iItem, int iSlot)
         ShowMenu(iSlot);
         return;
     }
-    
+
     g_SavedKit[iSlot] = kitId;
     SavePlayerData(iSlot, kitId);
     
@@ -420,7 +559,6 @@ void VIP_OnClientLoaded(int iSlot, bool bIsVIP) {
     }
 }
 
-
 bool VIP_WeaponkitMenu(int iSlot, const char* szValue) {
     ShowMenu(iSlot);
     return false;
@@ -500,7 +638,7 @@ const char *vip_weaponkit::GetLicense()
 
 const char *vip_weaponkit::GetVersion()
 {
-    return "1.1.1";
+    return "1.1.2";
 }
 
 const char *vip_weaponkit::GetDate()
