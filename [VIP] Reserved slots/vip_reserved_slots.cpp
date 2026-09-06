@@ -48,7 +48,7 @@ static bool HasReserveAccess(int iSlot);
 static int  CountNonReservePlayers(int excludeSlot);
 static int  FindNonReservePlayerToKick(int avoidSlot);
 static void KickClientForReserve(int iSlot, int iReasonId);
-static void OnClientAuthorized(int iSlot, uint64 iSteamID64);
+static void OnVIPClientLoaded(int iSlot, bool bIsVIP);
 
 CGameEntitySystem* GameEntitySystem()
 {
@@ -123,7 +123,7 @@ void vip_reserved_slots::AllPluginsLoaded()
 		return;
 	}
 
-	g_pPlayersApi->HookOnClientAuthorized(g_PLID, OnClientAuthorized);
+	g_pVIP->VIP_OnClientLoaded(OnVIPClientLoaded);
 	g_pUtils->StartupServer(g_PLID, StartupServer);
 
 	g_pUtils->CreateTimer(10.0f, []() -> float {
@@ -201,6 +201,7 @@ static void LoadReservedSlotsConfig()
 
 	if (g_ReservedCfg.kickReasonId < 0)
 		g_ReservedCfg.kickReasonId = 135;
+
 	if (g_ReservedCfg.hideSlots < 0)
 		g_ReservedCfg.effectiveHide = g_ReservedCfg.effectivePublic;
 	else
@@ -284,15 +285,16 @@ static void KickClientForReserve(int iSlot, int iReasonId)
 	engine->DisconnectClient(CPlayerSlot(iSlot), static_cast<ENetworkDisconnectionReason>(iReasonId));
 }
 
-static void OnClientAuthorized(int iSlot, uint64 iSteamID64)
+static void OnVIPClientLoaded(int iSlot, bool bIsVIP)
 {
 	if (!g_pPlayersApi || !g_pVIP || !gpGlobals) return;
 	if (g_pPlayersApi->IsFakeClient(iSlot)) return;
+	if (!g_pPlayersApi->IsConnected(iSlot)) return;
 
 	const int iMaxClients = gpGlobals->maxClients;
 	if (iMaxClients <= 0) return;
 
-	const bool bHasReserve       = HasReserveAccess(iSlot);
+	const bool bHasReserve       = bIsVIP && HasReserveAccess(iSlot);
 	const int  iEffectivePub     = g_ReservedCfg.effectivePublic;
 	const int  iOthersNonReserve = CountNonReservePlayers(iSlot);
 
@@ -330,7 +332,7 @@ const char *vip_reserved_slots::GetLicense()
 
 const char *vip_reserved_slots::GetVersion()
 {
-    return "1.0";
+    return "1.0.1";
 }
 
 const char *vip_reserved_slots::GetDate()
