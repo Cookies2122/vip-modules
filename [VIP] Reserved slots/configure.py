@@ -1,4 +1,3 @@
-# vim: set sts=2 ts=8 sw=2 tw=99 et:
 import sys
 try:
   from ambuild2 import run, util

@@ -5,12 +5,13 @@
 #include <igameevents.h>
 #include "utlvector.h"
 #include "ehandle.h"
-#include <sh_vector.h>
 #include <entity2/entitysystem.h>
 #include "CCSPlayerController.h"
 #include "iserver.h"
 #include "include/vip.h"
 #include "include/menus.h"
+#include "include/utils.h"
+#include "include/players.h"
 #include <string>
 #include <vector>
 #include <map>

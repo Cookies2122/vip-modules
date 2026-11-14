@@ -50,11 +50,6 @@ static int  FindNonReservePlayerToKick(int avoidSlot);
 static void KickClientForReserve(int iSlot, int iReasonId);
 static void OnVIPClientLoaded(int iSlot, bool bIsVIP);
 
-CGameEntitySystem* GameEntitySystem()
-{
-	return g_pUtils->GetCGameEntitySystem();
-}
-
 void StartupServer()
 {
 	g_pGameEntitySystem = GameEntitySystem();
@@ -69,6 +64,7 @@ bool vip_reserved_slots::Load(PluginId id, ISmmAPI* ismm, char* error, size_t ma
 	PLUGIN_SAVEVARS();
 
 	GET_V_IFACE_CURRENT(GetEngineFactory,     g_pCVar,           ICvar,             CVAR_INTERFACE_VERSION);
+	GET_V_IFACE_ANY(GetEngineFactory, g_pGameResourceServiceServer, IGameResourceService, GAMERESOURCESERVICESERVER_INTERFACE_VERSION);
 	GET_V_IFACE_ANY    (GetEngineFactory,     g_pSchemaSystem,   ISchemaSystem,     SCHEMASYSTEM_INTERFACE_VERSION);
 	GET_V_IFACE_CURRENT(GetEngineFactory,     engine,            IVEngineServer2,   SOURCE2ENGINETOSERVER_INTERFACE_VERSION);
 	GET_V_IFACE_CURRENT(GetFileSystemFactory, g_pFullFileSystem, IFileSystem,       FILESYSTEM_INTERFACE_VERSION);
@@ -99,7 +95,7 @@ void vip_reserved_slots::AllPluginsLoaded()
 {
 	int ret;
 
-	g_pUtils = (IUtilsApi*)g_SMAPI->MetaFactory(Utils_INTERFACE, &ret, NULL);
+	g_pUtils = (IUtilsApi*)g_SMAPI->MetaFactory(UTILS_INTERFACE, &ret, NULL);
 	if (ret == META_IFACE_FAILED || !g_pUtils)
 	{
 		ConColorMsg(Color(255, 0, 0, 255), "[VRS] Missing Utils\n");

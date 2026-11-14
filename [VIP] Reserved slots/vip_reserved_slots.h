@@ -2,7 +2,6 @@
 #define _INCLUDE_METAMOD_SOURCE_STUB_PLUGIN_H_
 
 #include <ISmmPlugin.h>
-#include <sh_vector.h>
 #include "utlvector.h"
 #include "ehandle.h"
 #include <iserver.h>
@@ -15,6 +14,8 @@
 #include <keyvalues.h>
 #include "CCSPlayerController.h"
 #include "include/menus.h"
+#include "include/utils.h"
+#include "include/players.h"
 #include "include/vip.h"
 
 class vip_reserved_slots final : public ISmmPlugin, public IMetamodListener
@@ -33,4 +34,4 @@ public:
 	const char* GetLogTag();
 };
 
-#endif //_INCLUDE_METAMOD_SOURCE_STUB_PLUGIN_H_
+#endif

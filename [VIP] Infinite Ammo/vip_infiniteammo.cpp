@@ -221,11 +221,6 @@ float InfiniteAmmoTimer()
 	return 0.1f;
 }
 
-CGameEntitySystem* GameEntitySystem()
-{
-	return g_pUtils->GetCGameEntitySystem();
-}
-
 void ResetPlayerState(int iSlot)
 {
 	g_State[iSlot].iCount = 0;
@@ -245,7 +240,12 @@ void OnStartupServer()
 
 	LoadConfig();
 
-	g_pUtils->CreateTimer(0.1f, InfiniteAmmoTimer);
+	static bool s_bTimerStarted = false;
+	if (!s_bTimerStarted)
+	{
+		g_pUtils->CreateTimer(0.1f, InfiniteAmmoTimer);
+		s_bTimerStarted = true;
+	}
 }
 
 void GetGameRules()
@@ -303,6 +303,7 @@ bool vip_infiniteammo::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxl
 {
 	PLUGIN_SAVEVARS();
 	GET_V_IFACE_ANY(GetEngineFactory, g_pSchemaSystem, ISchemaSystem, SCHEMASYSTEM_INTERFACE_VERSION);
+	GET_V_IFACE_ANY(GetEngineFactory, g_pGameResourceServiceServer, IGameResourceService, GAMERESOURCESERVICESERVER_INTERFACE_VERSION);
 	GET_V_IFACE_CURRENT(GetEngineFactory, engine, IVEngineServer2, SOURCE2ENGINETOSERVER_INTERFACE_VERSION);
 	GET_V_IFACE_CURRENT(GetFileSystemFactory, g_pFullFileSystem, IFileSystem, FILESYSTEM_INTERFACE_VERSION);
 	g_SMAPI->AddListener(this, this);
@@ -323,7 +324,7 @@ bool vip_infiniteammo::Unload(char* error, size_t maxlen)
 void vip_infiniteammo::AllPluginsLoaded()
 {
 	int ret;
-	g_pUtils = (IUtilsApi*)g_SMAPI->MetaFactory(Utils_INTERFACE, &ret, NULL);
+	g_pUtils = (IUtilsApi*)g_SMAPI->MetaFactory(UTILS_INTERFACE, &ret, NULL);
 	if (ret == META_IFACE_FAILED)
 	{
 		char error[64];
@@ -354,7 +355,6 @@ void vip_infiniteammo::AllPluginsLoaded()
 	g_pVIPCore->VIP_OnPlayerSpawn(OnPlayerSpawn);
 }
 
-///////////////////////////////////////
 const char* vip_infiniteammo::GetLicense()
 {
 	return "Public";

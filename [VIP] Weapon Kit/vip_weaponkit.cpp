@@ -564,10 +564,6 @@ bool VIP_WeaponkitMenu(int iSlot, const char* szValue) {
     return false;
 }
 
-CGameEntitySystem* GameEntitySystem() {
-    return g_pUtils->GetCGameEntitySystem();
-}
-
 void OnStartupServer() {
     g_pGameEntitySystem = GameEntitySystem();
     g_pEntitySystem = g_pGameEntitySystem;
@@ -581,6 +577,7 @@ void GetGameRules() {
 bool vip_weaponkit::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, bool late) {
     PLUGIN_SAVEVARS();
     GET_V_IFACE_ANY(GetEngineFactory, g_pSchemaSystem, ISchemaSystem, SCHEMASYSTEM_INTERFACE_VERSION);
+    GET_V_IFACE_ANY(GetEngineFactory, g_pGameResourceServiceServer, IGameResourceService, GAMERESOURCESERVICESERVER_INTERFACE_VERSION);
     GET_V_IFACE_CURRENT(GetEngineFactory, engine, IVEngineServer2, SOURCE2ENGINETOSERVER_INTERFACE_VERSION);
     GET_V_IFACE_CURRENT(GetFileSystemFactory, g_pFullFileSystem, IFileSystem, FILESYSTEM_INTERFACE_VERSION);
     g_SMAPI->AddListener(this, this);
@@ -590,7 +587,7 @@ bool vip_weaponkit::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen,
 void vip_weaponkit::AllPluginsLoaded() {
     int ret;
     
-    g_pUtils = (IUtilsApi*)g_SMAPI->MetaFactory(Utils_INTERFACE, &ret, NULL);
+    g_pUtils = (IUtilsApi*)g_SMAPI->MetaFactory(UTILS_INTERFACE, &ret, NULL);
     if (ret == META_IFACE_FAILED) {
         char error[64];
         V_strncpy(error, "Failed to lookup utils api. Aborting", 64);
@@ -600,7 +597,7 @@ void vip_weaponkit::AllPluginsLoaded() {
         return;
     }
     
-    g_pMenus = (IMenusApi*)g_SMAPI->MetaFactory(Menus_INTERFACE, &ret, NULL);
+    g_pMenus = (IMenusApi*)g_SMAPI->MetaFactory(MENUS_INTERFACE, &ret, NULL);
     if (ret == META_IFACE_FAILED) {
         g_pUtils->ErrorLog("[%s] Failed to lookup menus api. Aborting", GetLogTag());
         std::string sBuffer = "meta unload "+std::to_string(g_PLID);

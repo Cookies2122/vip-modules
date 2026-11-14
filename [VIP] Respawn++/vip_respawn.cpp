@@ -208,7 +208,7 @@ static bool OnRespawnCommand(int iSlot, const char* szContent)
 	return false;
 }
 
-static bool OnMenuSelect(int iSlot, const char* /*szFeature*/)
+static bool OnMenuSelect(int iSlot, const char*  )
 {
 	OnRespawnCommand(iSlot, "");
 	return false;
@@ -342,6 +342,7 @@ bool vip_respawn::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, b
 {
 	PLUGIN_SAVEVARS();
 	GET_V_IFACE_ANY    (GetEngineFactory,     g_pSchemaSystem,    ISchemaSystem,    SCHEMASYSTEM_INTERFACE_VERSION);
+	GET_V_IFACE_ANY(GetEngineFactory, g_pGameResourceServiceServer, IGameResourceService, GAMERESOURCESERVICESERVER_INTERFACE_VERSION);
 	GET_V_IFACE_CURRENT(GetEngineFactory,     engine,             IVEngineServer2,  SOURCE2ENGINETOSERVER_INTERFACE_VERSION);
 	GET_V_IFACE_CURRENT(GetServerFactory,     g_pSource2Server,   ISource2Server,   SOURCE2SERVER_INTERFACE_VERSION);
 	GET_V_IFACE_CURRENT(GetFileSystemFactory, g_pFullFileSystem,  IFileSystem,      FILESYSTEM_INTERFACE_VERSION);
@@ -351,14 +352,11 @@ bool vip_respawn::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, b
 
 bool vip_respawn::Unload(char*, size_t)
 {
+	int ret;
+	if (!g_SMAPI->MetaFactory(UTILS_INTERFACE, &ret, nullptr)) g_pUtils = nullptr;
 	if (g_pUtils)
 		g_pUtils->ClearAllHooks(g_PLID);
 	return true;
-}
-
-CGameEntitySystem* GameEntitySystem()
-{
-	return g_pVIPCore->VIP_GetEntitySystem();
 }
 
 static void OnStartupServer()
@@ -378,6 +376,8 @@ static void OnVIPLoaded()
 		{ "mm_respawn", "sm_respawn", "respawn" },
 		{ "!respawn", "respawn" },
 		OnRespawnCommand);
+
+	OnStartupServer();
 }
 
 static bool BindIface(void*& pTarget, const char* szIface, const char* szLabel)
@@ -398,7 +398,7 @@ static bool BindIface(void*& pTarget, const char* szIface, const char* szLabel)
 void vip_respawn::AllPluginsLoaded()
 {
 	if (!BindIface(*reinterpret_cast<void**>(&g_pVIPCore), VIP_INTERFACE,     "vip core"))   return;
-	if (!BindIface(*reinterpret_cast<void**>(&g_pUtils),   Utils_INTERFACE,   "utils api"))  return;
+	if (!BindIface(*reinterpret_cast<void**>(&g_pUtils),   UTILS_INTERFACE,   "utils api"))  return;
 	if (!BindIface(*reinterpret_cast<void**>(&g_pPlayers), PLAYERS_INTERFACE, "players api")) return;
 
 	g_pVIPCore->VIP_OnVIPLoaded(OnVIPLoaded);

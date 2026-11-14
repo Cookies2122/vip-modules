@@ -1,4 +1,3 @@
-# vim: set sts=2 ts=8 sw=2 tw=99 et ft=python:
 import os
 
 for sdk_target in MMSPlugin.sdk_targets:
@@ -15,11 +14,9 @@ for sdk_target in MMSPlugin.sdk_targets:
       '-Wno-error=attributes',
     ]
 
-    binary.custom = [builder.tools.Protoc(protoc = sdk_target.protoc, sources = [
-      os.path.join(sdk['path'], 'common', 'network_connection.proto')
-    ])]
-
     schema_dir = os.path.join(MMSPlugin.mms_root, 'SchemaEntity')
+    if not os.path.isdir(schema_dir):
+      schema_dir = os.path.join(builder.sourcePath, '..', 'SchemaEntity')
 
     binary.compiler.cxxincludes += [
       os.path.join(builder.sourcePath, 'include'),
@@ -31,7 +28,5 @@ for sdk_target in MMSPlugin.sdk_targets:
       os.path.join(schema_dir, 'schemasystem.cpp'),
     ]
 
-    if cxx.target.arch == 'x86':
-      binary.sources += ['sourcehook/sourcehook_hookmangen.cpp']
     nodes = builder.Add(binary)
     MMSPlugin.binaries += [nodes]
